@@ -270,6 +270,15 @@ public final class ImageView: ExpoView {
         ]
       ])
 
+      // Feed the expo-observe oversized check from the view path too (images rendered by
+      // `<Image source={{ uri }} />` never go through `loadAsync`). Uses the decoded pixel size,
+      // consistent with `loadAsync`. Best-effort: a missing module never disrupts rendering.
+      (appContext?.moduleRegistry.get(moduleWithName: "ExpoImage") as? ImageModule)?.emitImageLoaded(
+        url: imageUrl?.absoluteString ?? "",
+        width: image.size.width * image.scale,
+        height: image.size.height * image.scale
+      )
+
       let scale = window?.screen.scale ?? UIScreen.main.scale
       imageLayoutSize = idealSize(
         contentPixelSize: image.size * image.scale,

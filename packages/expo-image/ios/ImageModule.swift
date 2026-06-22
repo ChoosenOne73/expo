@@ -8,8 +8,22 @@ internal import SDWebImageSVGCoder
 public final class ImageModule: Module {
   lazy var prefetcher = SDWebImagePrefetcher.shared
 
+  // Whether JS is listening for `onImageLoaded`. Gates emission so nothing crosses the bridge unless
+  // an app enabled the expo-observe integration (which subscribes via `observe.ts`). A best-effort,
+  // intentionally lock-free gate: it's flipped on the observing queue and read from load completions
+  // on other queues, so a one-event-late flip at the enable/disable boundary is acceptable.
+  private var hasImageLoadedListener = false
+
   public func definition() -> ModuleDefinition {
     Name("ExpoImage")
+
+    // Module-level event feeding the expo-observe oversized-image check. Emitted from `loadAsync`
+    // and the `<Image>` view with the decoded pixel size. (The `Events(...)` inside `View(...)` are
+    // View-scoped and separate from this.)
+    Events("onImageLoaded")
+
+    OnStartObserving("onImageLoaded") { self.hasImageLoadedListener = true }
+    OnStopObserving("onImageLoaded") { self.hasImageLoadedListener = false }
 
     OnCreate {
       ImageModule.registerCoders()
@@ -245,8 +259,16 @@ public final class ImageModule: Module {
       }
     }
 
-    AsyncFunction("loadAsync") { (source: ImageSource, options: ImageLoadOptions?) -> Image? in
+    AsyncFunction("loadAsync") { [weak appContext = self.appContext] (source: ImageSource, options: ImageLoadOptions?) -> Image? in
       let image = try await ImageLoadTask(source, options: options ?? ImageLoadOptions()).load()
+      // Emit the oversized-check event through the module looked up from the registry — the same
+      // path the `<Image>` view uses. Going through the (Sendable) `appContext` instead of capturing
+      // `self` keeps this `@Sendable async` closure from forcing the whole module to be Sendable.
+      (appContext?.moduleRegistry.get(moduleWithName: "ExpoImage") as? ImageModule)?.emitImageLoaded(
+        url: source.uri?.absoluteString ?? "",
+        width: image.size.width * image.scale,
+        height: image.size.height * image.scale
+      )
       return Image(image)
     }
 
@@ -259,6 +281,19 @@ public final class ImageModule: Module {
         return imageFormatToMediaType(image.ref.sd_imageFormat)
       }
     }
+  }
+
+  // Emits `onImageLoaded` with a decoded pixel size for the expo-observe oversized check. Best-effort
+  // and gated: no-op unless JS is listening and the size/url are valid, so it never disrupts loading.
+  func emitImageLoaded(url: String, width: CGFloat, height: CGFloat) {
+    guard hasImageLoadedListener, width > 0, height > 0, !url.isEmpty else {
+      return
+    }
+    sendEvent("onImageLoaded", [
+      "url": url,
+      "width": Double(width),
+      "height": Double(height)
+    ])
   }
 
   func generatePlaceholder(

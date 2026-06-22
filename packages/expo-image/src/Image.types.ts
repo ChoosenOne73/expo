@@ -11,6 +11,7 @@ import type {
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import type ExpoImage from './ExpoImage';
+import type { ExpoImageIntegrationConfig } from './observe';
 
 export type ImageSource = {
   /**
@@ -792,9 +793,19 @@ export declare class ImageRef extends SharedRef<'image'> {
 }
 
 /**
+ * Module-level events emitted by the native `ExpoImage` module. `onImageLoaded` fires from every
+ * relevant load path (`loadAsync`, `useImage`, and the rendered `<Image>` view) with the decoded
+ * pixel size.
  * @hidden
  */
-export declare class ImageNativeModule extends NativeModule {
+export type ImageModuleEvents = {
+  onImageLoaded: (event: { url: string; width: number; height: number }) => void;
+};
+
+/**
+ * @hidden
+ */
+export declare class ImageNativeModule extends NativeModule<ImageModuleEvents> {
   // TODO: Add missing function declarations
   Image: typeof ImageRef;
 
@@ -871,3 +882,14 @@ export type ImageCacheConfig = {
    */
   maxMemoryCount?: number;
 };
+
+// Register the `'expo-image'` key on expo-observe's open `ObserveIntegrationsConfig` interface via
+// declaration merging, so `Observe.configure({ integrations: { 'expo-image': ... } })` is suggested
+// and type-checked. The config type itself lives in `observe.ts` (imported at the top of this file);
+// this augmentation lives here because `Image.types.ts` is always part of the package's public type
+// graph, so it is picked up whenever expo-image is imported.
+declare module 'expo-observe' {
+  interface ObserveIntegrationsConfig {
+    'expo-image'?: boolean | ExpoImageIntegrationConfig;
+  }
+}
