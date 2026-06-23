@@ -2,6 +2,7 @@
 
 import React, { use, useCallback, useMemo, useRef } from 'react';
 
+import { useOptionalContextKey } from '../Route';
 import { withLayoutContext } from '../layouts/withLayoutContext';
 import { getPathFromState } from '../link/linking';
 import { useStableTabOrder } from '../react-navigation/core/useStableTabOrder';
@@ -11,6 +12,8 @@ import type {
   TabRouterOptions,
 } from '../react-navigation/native';
 import { createNavigatorFactory, useNavigationBuilder } from '../react-navigation/native';
+import { usePreloadRoutes } from '../react-navigation/usePreloadRoutes';
+import { useTabPlaceholders } from '../react-navigation/useTabPlaceholders';
 import { getAllChildrenNotOfType, getAllChildrenOfType } from '../utils/children';
 import { NativeBottomTabsRouter } from './NativeBottomTabsRouter';
 import { NativeTabTrigger } from './NativeTabTrigger';
@@ -64,7 +67,7 @@ export function NativeTabsNavigator({
       ? { color: rest.tintColor }
       : undefined;
 
-  const { state, descriptors, navigation, NavigationContent } = useNavigationBuilder<
+  const { state, descriptors, navigation, describe, NavigationContent } = useNavigationBuilder<
     TabNavigationState<ParamListBase>,
     TabRouterOptions,
     Record<string, (...args: unknown[]) => void>,
@@ -93,25 +96,40 @@ export function NativeTabsNavigator({
     },
   });
 
+  // Native tabs are fully eager: every declared tab must mount, so preload them all. Placeholders
+  // back-fill the tab bar for any route that hasn't materialized yet so all tabs render from the
+  // first frame; their keys match what the router assigns, so the real route reconciles in place.
+  // TODO: Consider supporting lazy routes here (preload only non-lazy tabs, like the JS navigators)
+  // instead of always mounting every tab — would defer offscreen tab cost on the native side.
+  usePreloadRoutes(state, navigation, state.routeNames);
+  const pathname = useOptionalContextKey();
+  const [tabState, tabDescriptors] = useTabPlaceholders(
+    state,
+    descriptors,
+    describe,
+    pathname,
+    state.routeNames
+  );
+
   // `state.routes` is ordered by the navigator's back stack; render the native tab bar
   // in stable declaration order while resolving focus from `state.routes`.
-  const orderedRoutes = useStableTabOrder(state);
+  const orderedRoutes = useStableTabOrder(tabState);
 
   const visibleTabs = useMemo(
     () =>
       orderedRoutes
         // The <NativeTab.Trigger> always sets `hidden` to defined boolean value.
         // If it is not defined, then it was not specified, and we should hide the tab.
-        .filter((route) => descriptors[route.key]!.options?.hidden !== true)
+        .filter((route) => tabDescriptors[route.key]!.options?.hidden !== true)
         .map(
           (route): NativeTabsViewTabItem => ({
-            options: descriptors[route.key]!.options,
+            options: tabDescriptors[route.key]!.options,
             routeKey: route.key,
             name: route.name,
-            contentRenderer: () => descriptors[route.key]!.render(),
+            contentRenderer: () => tabDescriptors[route.key]!.render(),
           })
         ),
-    [orderedRoutes, descriptors]
+    [orderedRoutes, tabDescriptors]
   );
   const visibleFocusedTabIndex = useMemo(
     () => visibleTabs.findIndex((tab) => tab.routeKey === state.routes[state.index]!.key),
@@ -153,7 +171,9 @@ export function NativeTabsNavigator({
       provenanceRef.current = provenance;
 
       if (isNativeAction) {
-        const { route } = descriptors[selectedKey]!;
+        // Read from the augmented descriptors: tapping a not-yet-materialized tab resolves its key
+        // to a placeholder, which the raw descriptors don't have.
+        const { route } = tabDescriptors[selectedKey]!;
         navigation.emit({
           type: 'tabPress',
           target: selectedKey,
@@ -171,7 +191,7 @@ export function NativeTabsNavigator({
         });
       }
     },
-    [descriptors, navigation, state.key]
+    [tabDescriptors, navigation, state.key]
   );
 
   return (
