@@ -16,13 +16,22 @@ public class AudioPlaylist: SharedRef<AVQueuePlayer>, Playable {
   var wasPlaying = false
 
   private(set) var sources: [AudioSource] = []
-  private(set) var currentTrackIndex: Int = 0
+
+  private var playerItems: [AVPlayerItem?] = []
+  private var previousTrackIndex = 0
+
+  var currentTrackIndex: Int {
+    guard let current = ref.currentItem,
+          let index = playerItems.firstIndex(where: { $0 === current }) else {
+      return min(max(previousTrackIndex, 0), max(sources.count - 1, 0))
+    }
+    return index
+  }
 
   func getSourceInfo() -> [AudioSource] {
     return sources
   }
 
-  private var currentItem: AVPlayerItem?
   private var timeToken: Any?
   private var cancellables = Set<AnyCancellable>()
   private var endObserver: NSObjectProtocol?
@@ -60,7 +69,8 @@ public class AudioPlaylist: SharedRef<AVQueuePlayer>, Playable {
     self.sources = sources
     super.init(ref)
 
-    self.currentItem = ref.currentItem
+    self.playerItems = ref.items().map { $0 as AVPlayerItem? }
+    ref.actionAtItemEnd = loopMode == .single ? .pause : .advance
     setupPublisher()
     addPlaybackEndNotification()
   }
@@ -75,29 +85,20 @@ public class AudioPlaylist: SharedRef<AVQueuePlayer>, Playable {
   }
 
   func next() {
-    let previousIndex = currentTrackIndex
-
     if currentTrackIndex < sources.count - 1 {
       ref.advanceToNextItem()
-      currentTrackIndex += 1
-      currentItem = ref.currentItem
-      emitTrackChanged(previousIndex: previousIndex, currentIndex: currentTrackIndex)
     } else if loopMode == .all && !sources.isEmpty {
       skipTo(index: 0)
     }
   }
 
   func previous() {
-    let previousIndex = currentTrackIndex
-
     if currentTrackIndex > 0 {
       let wasPlaying = isPlaying
-      currentTrackIndex -= 1
-      rebuildPlaylist(startingAt: currentTrackIndex)
+      rebuildPlaylist(startingAt: currentTrackIndex - 1)
       if wasPlaying {
         play(at: currentRate)
       }
-      emitTrackChanged(previousIndex: previousIndex, currentIndex: currentTrackIndex)
     } else if loopMode == .all && !sources.isEmpty {
       skipTo(index: sources.count - 1)
     }
@@ -108,17 +109,12 @@ public class AudioPlaylist: SharedRef<AVQueuePlayer>, Playable {
       return
     }
 
-    let previousIndex = currentTrackIndex
     let wasPlaying = isPlaying
-
-    currentTrackIndex = index
     rebuildPlaylist(startingAt: index)
 
     if wasPlaying {
       play(at: currentRate)
     }
-
-    emitTrackChanged(previousIndex: previousIndex, currentIndex: currentTrackIndex)
   }
 
   func seekTo(seconds: Double) async {
@@ -135,12 +131,11 @@ public class AudioPlaylist: SharedRef<AVQueuePlayer>, Playable {
 
   func add(source: AudioSource) {
     sources.append(source)
-    if let item = AudioUtils.createAVPlayerItem(from: source) {
+    let item = AudioUtils.createAVPlayerItem(from: source)
+    if let item {
       ref.insert(item, after: nil)
     }
-    if currentItem == nil {
-      currentItem = ref.currentItem
-    }
+    playerItems.append(item)
     updateStatus(with: ["trackCount": trackCount])
   }
 
@@ -150,13 +145,11 @@ public class AudioPlaylist: SharedRef<AVQueuePlayer>, Playable {
     }
 
     let wasPlaying = isPlaying
+    let resumeIndex = index <= currentTrackIndex ? currentTrackIndex + 1 : currentTrackIndex
     sources.insert(source, at: index)
 
-    if index <= currentTrackIndex {
-      currentTrackIndex += 1
-    }
-
-    rebuildPlaylist(startingAt: currentTrackIndex)
+    previousTrackIndex = resumeIndex
+    rebuildPlaylist(startingAt: resumeIndex)
     if wasPlaying {
       play(at: currentRate)
     }
@@ -169,19 +162,20 @@ public class AudioPlaylist: SharedRef<AVQueuePlayer>, Playable {
     }
 
     let wasPlaying = isPlaying
+    let current = currentTrackIndex
     sources.remove(at: index)
 
-    if index == currentTrackIndex {
-      if currentTrackIndex >= sources.count {
-        currentTrackIndex = max(0, sources.count - 1)
-      }
-      rebuildPlaylist(startingAt: currentTrackIndex)
+    if index == current {
+      let resumeIndex = min(current, max(0, sources.count - 1))
+      previousTrackIndex = resumeIndex
+      rebuildPlaylist(startingAt: resumeIndex)
       if wasPlaying && !sources.isEmpty {
         play(at: currentRate)
       }
-    } else if index < currentTrackIndex {
-      currentTrackIndex -= 1
-      rebuildPlaylist(startingAt: currentTrackIndex)
+    } else if index < current {
+      let resumeIndex = current - 1
+      previousTrackIndex = resumeIndex
+      rebuildPlaylist(startingAt: resumeIndex)
       if wasPlaying {
         play(at: currentRate)
       }
@@ -194,8 +188,8 @@ public class AudioPlaylist: SharedRef<AVQueuePlayer>, Playable {
     ref.pause()
     ref.removeAllItems()
     sources.removeAll()
-    currentTrackIndex = 0
-    currentItem = nil
+    playerItems.removeAll()
+    previousTrackIndex = 0
 
     updateStatus(with: [
       "trackCount": 0,
@@ -206,6 +200,7 @@ public class AudioPlaylist: SharedRef<AVQueuePlayer>, Playable {
 
   func setLoopMode(_ mode: LoopMode) {
     loopMode = mode
+    ref.actionAtItemEnd = mode == .single ? .pause : .advance
     updateStatus(with: ["loop": mode.rawValue])
   }
 
@@ -254,14 +249,18 @@ public class AudioPlaylist: SharedRef<AVQueuePlayer>, Playable {
   }
 
   private func rebuildPlaylist(startingAt index: Int) {
-    ref.removeAllItems()
-
+    var items = [AVPlayerItem?](repeating: nil, count: sources.count)
     for i in index..<sources.count {
-      if let item = AudioUtils.createAVPlayerItem(from: sources[i]) {
+      items[i] = AudioUtils.createAVPlayerItem(from: sources[i])
+    }
+    playerItems = items
+
+    ref.removeAllItems()
+    for i in index..<sources.count {
+      if let item = items[i] {
         ref.insert(item, after: nil)
       }
     }
-    currentItem = ref.currentItem
   }
 
   private func setupPublisher() {
@@ -281,7 +280,13 @@ public class AudioPlaylist: SharedRef<AVQueuePlayer>, Playable {
         guard let self else {
           return
         }
-        self.updateStatus(with: [:])
+        let index = self.currentTrackIndex
+        if index != self.previousTrackIndex {
+          self.emitTrackChanged(previousIndex: self.previousTrackIndex, currentIndex: index)
+          self.previousTrackIndex = index
+        } else {
+          self.updateStatus(with: [:])
+        }
       }
       .store(in: &cancellables)
   }
@@ -294,38 +299,29 @@ public class AudioPlaylist: SharedRef<AVQueuePlayer>, Playable {
     ) { [weak self] notification in
       guard let self,
             let item = notification.object as? AVPlayerItem,
-            item == self.currentItem else {
+            let finishedIndex = self.playerItems.firstIndex(where: { $0 === item }) else {
         return
       }
 
-      let previousIndex = self.currentTrackIndex
+      let isLastTrack = finishedIndex >= self.sources.count - 1
 
       switch self.loopMode {
       case .single:
-        self.rebuildPlaylist(startingAt: self.currentTrackIndex)
+        self.ref.seek(to: .zero)
         self.play(at: self.currentRate)
 
       case .all:
-        if self.currentTrackIndex >= self.sources.count - 1 {
+        if isLastTrack {
           self.skipTo(index: 0)
           self.play(at: self.currentRate)
-        } else {
-          self.currentItem = self.ref.currentItem
-          self.currentTrackIndex += 1
-          self.emitTrackChanged(previousIndex: previousIndex, currentIndex: self.currentTrackIndex)
         }
 
       case .none:
-        if self.currentTrackIndex >= self.sources.count - 1 {
-          self.currentItem = nil
+        if isLastTrack {
           self.updateStatus(with: [
             "playing": false,
             "didJustFinish": true
           ])
-        } else {
-          self.currentItem = self.ref.currentItem
-          self.currentTrackIndex += 1
-          self.emitTrackChanged(previousIndex: previousIndex, currentIndex: self.currentTrackIndex)
         }
       }
     }
