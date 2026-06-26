@@ -116,6 +116,7 @@ data class LogEvent(
   val sessionId: String,
   val timestamp: String,
   val name: String,
+  val displayName: String? = null,
   val body: String? = null,
   val severity: String,
   val attributes: JsonObject? = null,
@@ -127,6 +128,7 @@ data class LogEvent(
         sessionId = log.sessionId,
         timestamp = log.timestamp,
         name = log.name,
+        displayName = log.displayName,
         body = log.body,
         severity = log.severity,
         // Stored as a JSON string; parse defensively, falling back to no

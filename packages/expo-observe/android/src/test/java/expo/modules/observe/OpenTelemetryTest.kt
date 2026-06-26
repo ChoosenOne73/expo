@@ -520,11 +520,12 @@ internal val OTAnyValue.stringValue: String?
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE, sdk = [28])
 class LogEventToOTLogRecordTest {
-  private fun makeLog(severity: String): LogEvent =
+  private fun makeLog(severity: String = "info", displayName: String? = null): LogEvent =
     LogEvent(
       sessionId = "session-1",
       timestamp = "2025-01-01T00:00:00.000Z",
       name = "auth.login_failed",
+      displayName = displayName,
       body = "invalid_credentials",
       severity = severity,
       attributes = null,
@@ -550,5 +551,18 @@ class LogEventToOTLogRecordTest {
     val ot = makeLog(severity = "frobnicate").toOTLogRecord()
     assertEquals("INFO", ot.severityText)
     assertEquals(9, ot.severityNumber)
+  }
+
+  @Test
+  fun `emits expo_display_name attribute when set`() {
+    val ot = makeLog(displayName = "Login failed").toOTLogRecord()
+    val attrs = ot.attributes.associate { it.key to it.value.stringValue }
+    assertEquals("Login failed", attrs["expo.display_name"])
+  }
+
+  @Test
+  fun `omits expo_display_name attribute when null`() {
+    val ot = makeLog(displayName = null).toOTLogRecord()
+    assertFalse(ot.attributes.any { it.key == "expo.display_name" })
   }
 }

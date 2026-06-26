@@ -53,6 +53,7 @@ struct Event: Codable, Sendable {
 
   struct Log: Codable, Sendable {
     let name: String
+    let displayName: String?
     let body: String?
     let timestamp: String
     let severity: Severity
@@ -106,6 +107,7 @@ struct Event: Codable, Sendable {
       logs: logs.map { log in
         return Log(
           name: log.name,
+          displayName: log.displayName,
           body: log.body,
           timestamp: log.timestamp,
           severity: Severity(rawValue: log.severity) ?? .info,

@@ -332,6 +332,10 @@ fun LogEvent.toOTLogRecord(): OTLogRecord {
     OTAttribute.of(key = "session.id", rawValue = sessionId),
     OTAttribute.of(key = "event.name", rawValue = name)
   )
+  // SDK-reserved attribute; emitted only when the caller set a display name.
+  displayName?.let {
+    attributes.add(OTAttribute.of(key = "expo.display_name", rawValue = it))
+  }
 
   var encodeTimeDrops = 0
   this.attributes?.let { attrs ->

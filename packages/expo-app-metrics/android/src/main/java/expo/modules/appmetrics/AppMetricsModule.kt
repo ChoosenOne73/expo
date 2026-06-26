@@ -16,6 +16,7 @@ import expo.modules.appmetrics.networkrequests.NetworkRequestFilter
 import expo.modules.appmetrics.networkrequests.NetworkRequestObserver
 import expo.modules.appmetrics.logevents.Severity
 import expo.modules.appmetrics.logevents.sanitizeLogEventAttributes
+import expo.modules.appmetrics.logevents.validateDisplayName
 import expo.modules.appmetrics.logevents.validateEventBody
 import expo.modules.appmetrics.logevents.validateEventName
 import expo.modules.appmetrics.memory.MemoryMetricsManager
@@ -88,6 +89,7 @@ class AppMetricsModule : Module(), UpdatesStateChangeListener {
       // session handle (like `addMetric`), instead of writing to `mainSession` directly here.
       Function("logEvent") { name: String, options: LogEventOptions? ->
         val validatedName = validateEventName(name) ?: return@Function
+        val validatedDisplayName = validateDisplayName(options?.displayName)
         val validatedBody = validateEventBody(options?.body)
         val sanitized = sanitizeLogEventAttributes(options?.attributes)
         val severity = options?.severity ?: Severity.INFO
@@ -107,6 +109,7 @@ class AppMetricsModule : Module(), UpdatesStateChangeListener {
                 sessionId = mainSession.sessionId,
                 timestamp = TimeUtils.getCurrentTimestampInISOFormat(),
                 name = validatedName,
+                displayName = validatedDisplayName,
                 body = validatedBody,
                 severity = severity.rawValue,
                 attributes = sanitized.attributes?.let { JsonAny.encodeMapToJsonString(it) },

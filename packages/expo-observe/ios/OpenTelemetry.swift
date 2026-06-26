@@ -244,6 +244,10 @@ extension Event.Log {
       OTAttribute(key: "session.id", rawValue: sessionId),
       OTAttribute(key: "event.name", rawValue: name),
     ]
+    // SDK-reserved attribute; emitted only when the caller set a display name.
+    if let displayName {
+      attributes.append(OTAttribute(key: "expo.display_name", rawValue: displayName))
+    }
 
     var encodeTimeDrops = 0
     if let userDict = self.attributes?.value as? [String: Any] {

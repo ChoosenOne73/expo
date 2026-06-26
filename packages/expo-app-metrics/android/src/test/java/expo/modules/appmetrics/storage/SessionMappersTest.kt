@@ -40,12 +40,14 @@ class SessionMappersTest {
     logId: String = "log-1",
     sessionId: String = "session-1",
     name: String = "auth.login_failed",
+    displayName: String? = "Login failed",
     attributes: String? = null
   ): LogRecord = LogRecord(
     logId = logId,
     sessionId = sessionId,
     timestamp = "2025-01-01T00:00:02.000Z",
     name = name,
+    displayName = displayName,
     body = "invalid_credentials",
     severity = "warn",
     attributes = attributes
@@ -166,9 +168,17 @@ class SessionMappersTest {
     val js = JsLogRecord.fromLogRecord(makeLog())
 
     assertEquals("auth.login_failed", js.name)
+    assertEquals("Login failed", js.displayName)
     assertEquals("invalid_credentials", js.body)
     assertEquals("warn", js.severity)
     assertEquals("2025-01-01T00:00:02.000Z", js.timestamp)
+  }
+
+  @Test
+  fun `JsLogRecord_fromLogRecord yields null displayName when storage column is null`() {
+    val js = JsLogRecord.fromLogRecord(makeLog(displayName = null))
+
+    assertNull(js.displayName)
   }
 
   @Test

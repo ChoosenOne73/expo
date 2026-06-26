@@ -11,7 +11,7 @@ final class MetricsDatabase: Sendable {
   /// semantics change in a way that an older or newer build can't operate on; on a mismatch the
   /// database is wiped and recreated (see `openConnection`). We don't ship migrations yet — the data
   /// is local-only and short-lived, so wiping is preferable to maintaining migration code.
-  static let currentSchemaVersion = 3
+  static let currentSchemaVersion = 4
 
   /// How long a session (and its metrics, logs, crash report) is retained before `init` prunes it.
   static let sessionRetention: TimeInterval = 7 * 24 * 60 * 60  // 7 days
@@ -345,7 +345,7 @@ final class MetricsDatabase: Sendable {
   func getLogs(afterId cursor: Int64) throws -> [LogRow] {
     let statement = try database.prepare(
       """
-      SELECT id, sessionId, timestamp, severity, name, body, attributes, droppedAttributesCount
+      SELECT id, sessionId, timestamp, severity, name, displayName, body, attributes, droppedAttributesCount
       FROM logs WHERE id > ?1 ORDER BY id ASC
       """)
     try statement.bindAll([cursor])
@@ -466,12 +466,12 @@ final class MetricsDatabase: Sendable {
   func insert(log: LogRow) throws -> Int64 {
     let statement = try database.prepare(
       """
-      INSERT INTO logs (sessionId, timestamp, severity, name, body, attributes, droppedAttributesCount)
-      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+      INSERT INTO logs (sessionId, timestamp, severity, name, displayName, body, attributes, droppedAttributesCount)
+      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
       """)
     try statement.bindAll([
       log.sessionId, log.timestamp, log.severity, log.name,
-      log.body, log.attributes, log.droppedAttributesCount,
+      log.displayName, log.body, log.attributes, log.droppedAttributesCount,
     ])
     try statement.run()
     return database.lastInsertRowid()
@@ -493,7 +493,7 @@ final class MetricsDatabase: Sendable {
   func getLogs(sessionId: String) throws -> [LogRow] {
     let statement = try database.prepare(
       """
-      SELECT id, sessionId, timestamp, severity, name, body, attributes, droppedAttributesCount
+      SELECT id, sessionId, timestamp, severity, name, displayName, body, attributes, droppedAttributesCount
       FROM logs WHERE sessionId = ?1 ORDER BY id ASC
       """)
     try statement.bindAll([sessionId])
@@ -616,6 +616,7 @@ final class MetricsDatabase: Sendable {
         timestamp TEXT NOT NULL,
         severity TEXT NOT NULL,
         name TEXT NOT NULL,
+        displayName TEXT,
         body TEXT,
         attributes TEXT,
         droppedAttributesCount INTEGER NOT NULL DEFAULT 0

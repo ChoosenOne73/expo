@@ -58,6 +58,43 @@ struct OpenTelemetryTests {
     )
   }
 
+  private func makeLog(name: String, displayName: String?) -> Event.Log {
+    Event.Log(
+      name: name,
+      displayName: displayName,
+      body: nil,
+      timestamp: "2026-01-09T12:08:09Z",
+      severity: .info,
+      attributes: nil,
+      droppedAttributesCount: 0,
+      sessionId: testSessionId
+    )
+  }
+
+  private func stringAttribute(_ otLog: OTLogRecord, key: String) -> String? {
+    guard let attribute = otLog.attributes.first(where: { $0.key == key }) else {
+      return nil
+    }
+    guard case .string(let value) = attribute.value else {
+      return nil
+    }
+    return value
+  }
+
+  // MARK: - Log display name mapping
+
+  @Test
+  func `toOTLogRecord emits expo.display_name when set`() {
+    let otLog = makeLog(name: "auth.login_failed", displayName: "Login failed").toOTLogRecord()
+    #expect(stringAttribute(otLog, key: "expo.display_name") == "Login failed")
+  }
+
+  @Test
+  func `toOTLogRecord omits expo.display_name when nil`() {
+    let otLog = makeLog(name: "auth.login_failed", displayName: nil).toOTLogRecord()
+    #expect(otLog.attributes.contains(where: { $0.key == "expo.display_name" }) == false)
+  }
+
   // MARK: - Metric name mapping
 
   @Test

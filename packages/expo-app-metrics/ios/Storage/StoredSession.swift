@@ -83,6 +83,7 @@ func decodeLogs(from rows: [LogRow]) -> [LogRecord] {
   return rows.map { log in
     return LogRecord(
       name: log.name,
+      displayName: log.displayName,
       body: log.body,
       attributes: decodeJSONDictionary(log.attributes),
       droppedAttributesCount: log.droppedAttributesCount,

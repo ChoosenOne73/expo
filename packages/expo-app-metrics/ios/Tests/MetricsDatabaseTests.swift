@@ -430,6 +430,7 @@ struct MetricsDatabaseTests {
           timestamp: "2026-05-07T12:00:00Z",
           severity: "error",
           name: "boom",
+          displayName: "Boom happened",
           body: "something exploded",
           attributes: "{\"key\":\"value\"}",
           droppedAttributesCount: 3
@@ -441,6 +442,7 @@ struct MetricsDatabaseTests {
       #expect(row.timestamp == "2026-05-07T12:00:00Z")
       #expect(row.severity == "error")
       #expect(row.name == "boom")
+      #expect(row.displayName == "Boom happened")
       #expect(row.body == "something exploded")
       #expect(row.attributes == "{\"key\":\"value\"}")
       #expect(row.droppedAttributesCount == 3)
@@ -654,6 +656,7 @@ private func makeLogRow(
   timestamp: String = "2026-05-07T12:00:00Z",
   severity: String = "info",
   name: String,
+  displayName: String? = nil,
   body: String? = nil,
   attributes: String? = nil,
   droppedAttributesCount: Int = 0
@@ -663,6 +666,7 @@ private func makeLogRow(
     timestamp: timestamp,
     severity: severity,
     name: name,
+    displayName: displayName,
     body: body,
     attributes: attributes,
     droppedAttributesCount: droppedAttributesCount

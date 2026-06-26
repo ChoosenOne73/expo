@@ -179,6 +179,8 @@ public struct LogRow: Sendable {
   public let timestamp: String
   public let severity: String
   public let name: String
+  /// Optional human-friendly label for the event, distinct from the machine `name`.
+  public let displayName: String?
   public let body: String?
   /// JSON-encoded attributes blob. The persistence layer doesn't interpret the contents.
   public let attributes: String?
@@ -190,6 +192,7 @@ public struct LogRow: Sendable {
     timestamp: String,
     severity: String,
     name: String,
+    displayName: String? = nil,
     body: String? = nil,
     attributes: String? = nil,
     droppedAttributesCount: Int = 0
@@ -199,6 +202,7 @@ public struct LogRow: Sendable {
     self.timestamp = timestamp
     self.severity = severity
     self.name = name
+    self.displayName = displayName
     self.body = body
     self.attributes = attributes
     self.droppedAttributesCount = droppedAttributesCount
@@ -213,9 +217,10 @@ extension LogRow {
       timestamp: row.string(at: 2) ?? "",
       severity: row.string(at: 3) ?? "info",
       name: row.string(at: 4) ?? "",
-      body: row.string(at: 5),
-      attributes: row.string(at: 6),
-      droppedAttributesCount: row.int(at: 7) ?? 0
+      displayName: row.string(at: 5),
+      body: row.string(at: 6),
+      attributes: row.string(at: 7),
+      droppedAttributesCount: row.int(at: 8) ?? 0
     )
   }
 }

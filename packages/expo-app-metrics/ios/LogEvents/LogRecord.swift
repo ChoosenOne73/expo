@@ -5,6 +5,9 @@
 /// that decide how to dispatch or display them.
 public struct LogRecord: Codable, Sendable {
   public let name: String
+  /// Optional human-friendly label for the event, distinct from the machine `name`.
+  /// Omitted (`nil`) when the caller didn't set it.
+  public let displayName: String?
   public let body: String?
   public let attributes: AnyCodable?
   /// Number of attributes the SDK dropped while accepting this record (caller
@@ -17,6 +20,7 @@ public struct LogRecord: Codable, Sendable {
 
   init(
     name: String,
+    displayName: String? = nil,
     body: String? = nil,
     attributes: [String: Any]? = nil,
     droppedAttributesCount: Int = 0,
@@ -24,6 +28,7 @@ public struct LogRecord: Codable, Sendable {
     timestamp: String = Date.now.ISO8601Format()
   ) {
     self.name = name
+    self.displayName = displayName
     self.body = body
     self.attributes = attributes != nil ? AnyCodable(attributes) : nil
     self.droppedAttributesCount = droppedAttributesCount

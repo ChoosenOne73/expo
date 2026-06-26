@@ -24,7 +24,7 @@ object MetricsConstants {
 
 @Database(
   entities = [Metric::class, LogRecord::class, Session::class, CrashReportEntity::class],
-  version = 16,
+  version = 17,
   exportSchema = false
 )
 abstract class MetricsDatabase : RoomDatabase() {
@@ -151,6 +151,8 @@ data class LogRecord(
   // ISO 8601 date string
   val timestamp: String,
   val name: String,
+  // Optional human-friendly label for the event, distinct from the machine `name`.
+  val displayName: String? = null,
   val body: String? = null,
   // Lowercase severity case name (`trace`, `debug`, `info`, `warn`, `error`, `fatal`).
   val severity: String,

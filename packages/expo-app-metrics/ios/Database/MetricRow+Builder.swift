@@ -35,6 +35,7 @@ extension LogRow {
       timestamp: log.timestamp,
       severity: log.severity.rawValue,
       name: log.name,
+      displayName: log.displayName,
       body: log.body,
       attributes: mergedAttributes.flatMap { encodeAsJSONString(AnyCodable($0)) },
       droppedAttributesCount: log.droppedAttributesCount

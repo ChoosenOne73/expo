@@ -130,6 +130,7 @@ data class SessionMetricInput(
 data class JsLogRecord(
   @Field val timestamp: String,
   @Field val name: String,
+  @Field val displayName: String?,
   @Field val body: String?,
   @Field val severity: String,
   @Field val attributes: Map<String, Any?>?
@@ -139,6 +140,7 @@ data class JsLogRecord(
       JsLogRecord(
         timestamp = log.timestamp,
         name = log.name,
+        displayName = log.displayName,
         body = log.body,
         severity = log.severity,
         attributes = decodeJsonObject(log.attributes)
