@@ -6,6 +6,8 @@
 
 ### 🎉 New features
 
+- [iOS] Stop reading and hashing embedded assets into the updates database on first launch by default, configurable via `updates.copyEmbeddedAssets`. ([#47284](https://github.com/expo/expo/pull/47284) by [@alanjhughes](https://github.com/alanjhughes))
+
 ### 🐛 Bug fixes
 
 - [Android] Widen `UpdatesLogEntry.create`'s catch from `JSONException` to `Exception` so log-line parse failures consistently degrade to "skip the entry" instead of propagating. ([#46182](https://github.com/expo/expo/pull/46182) by [@jakequade-pc](https://github.com/jakequade-pc))
