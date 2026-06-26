@@ -145,7 +145,12 @@ public class AudioPlaylist: SharedRef<AVQueuePlayer>, Playable {
     }
 
     let wasPlaying = isPlaying
-    let resumeIndex = index <= currentTrackIndex ? currentTrackIndex + 1 : currentTrackIndex
+    let resumeIndex: Int
+    if ref.currentItem != nil {
+      resumeIndex = index <= currentTrackIndex ? currentTrackIndex + 1 : currentTrackIndex
+    } else {
+      resumeIndex = index
+    }
     sources.insert(source, at: index)
 
     previousTrackIndex = resumeIndex
@@ -179,6 +184,11 @@ public class AudioPlaylist: SharedRef<AVQueuePlayer>, Playable {
       if wasPlaying {
         play(at: currentRate)
       }
+    } else if index < playerItems.count {
+      if let item = playerItems[index] {
+        ref.remove(item)
+      }
+      playerItems.remove(at: index)
     }
 
     updateStatus(with: ["trackCount": trackCount])
